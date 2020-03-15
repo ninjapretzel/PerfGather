@@ -4,10 +4,18 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using Ex;
+using System.Runtime.CompilerServices;
 
 namespace PerfGather {
 
 	public class PerfSim : MonoBehaviour {
+
+		/// <summary> Hack to get the directory of a source file. </summary>
+		/// <param name="callerPath"> Filled in by compiler to be the file path of the source file that calls the method. </param>
+		/// <returns> Directory of whatever file calls this method. </returns>
+		public static string SourceFileDirectory([CallerFilePath] string callerPath = "[NO PATH]") {
+			return callerPath.Substring(0, callerPath.Replace('\\', '/').LastIndexOf('/'));
+		}
 
 		/// <summary> Duration of each test, in seconds. </summary>
 		public float testDuration = 5;
@@ -133,35 +141,34 @@ namespace PerfGather {
 		
 		/// <summary> Calculate test results and write out some files. </summary>
 		void TestFinished() {
-			JsonArray output = new JsonArray();
-			JsonArray preppedSmooth = new JsonArray();
-			JsonArray preppedRaw = new JsonArray();
-			JsonArray preppedMax = new JsonArray();
-			JsonArray preppedMin = new JsonArray();
+			JsonArray summary = new JsonArray();
+			JsonArray preppedAvg = new JsonArray();
+			// Commented the raw/min/max since I don't need to analyze them
+			//JsonArray preppedRaw = new JsonArray();
+			//JsonArray preppedMax = new JsonArray();
+			//JsonArray preppedMin = new JsonArray();
 
 			for (int i = 0; i < numTests; i++) {
 				JsonObject element = new JsonObject();
-				output.Add(element);
+				summary.Add(element);
 
 				var avgs = averages[i];
-				var smps = samples[i];
-				var max = maxs[i];
-				var min = mins[i];
+				//var smps = samples[i];
+				//var max = maxs[i];
+				//var min = mins[i];
 
 				var smooth = Average(avgs);
-				var raw = Average(smps);
-				var mi = Average(min);
-				var ma = Average(max);
+				//var raw = Average(smps);
 
 				element["smoothAverage"] = smooth;
-				element["rawAverage"] = raw;
-				element["max"] = Max(max);
-				element["min"] = Min(min);
+				//element["rawAverage"] = raw;
+				//element["max"] = Max(max);
+				//element["min"] = Min(min);
 
-				preppedSmooth.Add(new JsonArray(smooth));
-				preppedRaw.Add(new JsonArray(raw));
-				preppedMin.Add(new JsonArray(mi));
-				preppedMax.Add(new JsonArray(ma));
+				preppedAvg.Add(new JsonArray(smooth));
+				//preppedRaw.Add(new JsonArray(raw));
+				//preppedMin.Add(new JsonArray(mi));
+				//preppedMax.Add(new JsonArray(ma));
 
 				//element["averages"] = Json.Reflect(avgs);
 				//element["samples"] = Json.Reflect(smps);
@@ -170,12 +177,18 @@ namespace PerfGather {
 			}
 			DateTime now = DateTime.UtcNow;
 			long timestamp = now.UnixTimestamp();
-			File.WriteAllText($"PerfTests/{timestamp}-perftest.json", output.PrettyPrint());
-			File.WriteAllText($"PerfTests/{timestamp}-preppedSmooth.json", preppedSmooth.PrettyPrint());
-			File.WriteAllText($"PerfTests/{timestamp}-preppedRaw.json", preppedRaw.PrettyPrint());
-			File.WriteAllText($"PerfTests/{timestamp}-preppedMin.json", preppedMin.PrettyPrint());
-			File.WriteAllText($"PerfTests/{timestamp}-preppedMax.json", preppedMax.PrettyPrint());
+			string folder = $"{SourceFileDirectory()}/PerfResults";
+			if (!Directory.Exists(folder)) {
+				Directory.CreateDirectory(folder);
+			}
 
+			File.WriteAllText($"{folder}/{timestamp}-summary.json", summary.PrettyPrint());
+			File.WriteAllText($"{folder}/{timestamp}-averages.json", preppedAvg.PrettyPrint());
+			//File.WriteAllText($"{folder}/PerfTests/{timestamp}-preppedRaw.json", preppedRaw.PrettyPrint());
+			//File.WriteAllText($"{folder}/PerfTests/{timestamp}-preppedMin.json", preppedMin.PrettyPrint());
+			//File.WriteAllText($"{folder}/PerfTests/{timestamp}-preppedMax.json", preppedMax.PrettyPrint());
+
+			// Alert that it is finished with a sound (if present)
 			AudioSource src = GetComponent<AudioSource>();
 			if (src != null) {
 				src.Play();
